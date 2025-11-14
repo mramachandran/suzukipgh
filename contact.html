@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - Pittsburgh Suzuki Association</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Pittsburgh Suzuki Association</h1>
+            <p class="tagline">Nurturing musical excellence through the Suzuki Method</p>
+        </div>
+    </header>
+
+    <nav>
+        <div class="nav-container">
+            <a href="index.html">Home</a>
+            <a href="about.html">About</a>
+            <a href="teachers.html">Teachers</a>
+            <a href="programs.html">Programs</a>
+            <a href="events.html">Events</a>
+            <a href="contact.html" class="active">Contact</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <h2>Contact Us</h2>
+        
+        <section class="content-section">
+            <h3>Get in Touch</h3>
+            <p>We'd love to hear from you! Whether you're interested in finding a teacher, learning more about our programs, or getting involved with the Pittsburgh Suzuki Association, please reach out.</p>
+            
+            <div class="contact-info">
+                <p><strong>Email:</strong> <a href="mailto:info@pittsburghsuzuki.org">info@pittsburghsuzuki.org</a></p>
+                <p><strong>For teacher referrals:</strong> <a href="mailto:teachers@pittsburghsuzuki.org">teachers@pittsburghsuzuki.org</a></p>
+                <p><strong>For event information:</strong> <a href="mailto:events@pittsburghsuzuki.org">events@pittsburghsuzuki.org</a></p>
+            </div>
+        </section>
+
+        <section class="content-section">
+            <h3>Send Us a Message</h3>
+            <p class="note"><em>Note: This is a basic HTML contact form. You'll need to configure a form handler (like Formspree, Basin, or your hosting provider's form service) to make it functional. Replace the action URL below with your form handler endpoint.</em></p>
+            
+            <form action="https://formspree.io/f/YOUR_FORM_ID" method="POST" class="contact-form">
+                <div class="form-group">
+                    <label for="name">Name *</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" name="phone">
+                </div>
+
+                <div class="form-group">
+                    <label for="subject">Subject *</label>
+                    <select id="subject" name="subject" required>
+                        <option value="">Please select...</option>
+                        <option value="teacher-referral">Looking for a teacher</option>
+                        <option value="general">General inquiry</option>
+                        <option value="events">Event information</option>
+                        <option value="scholarship">Scholarship information</option>
+                        <option value="membership">Teacher membership</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message *</label>
+                    <textarea id="message" name="message" rows="6" required></textarea>
+                </div>
+
+                <button type="submit" class="button">Send Message</button>
+            </form>
+        </section>
+
+        <section class="content-section">
+            <h3>Frequently Asked Questions</h3>
+            
+            <div class="faq-item">
+                <h4>How do I find a Suzuki teacher?</h4>
+                <p>Contact us via email at <a href="mailto:teachers@pittsburghsuzuki.org">teachers@pittsburghsuzuki.org</a> with information about your child's age, instrument interest, and location. We'll provide you with contact information for member teachers in your area.</p>
+            </div>
+
+            <div class="faq-item">
+                <h4>What age should my child start?</h4>
+                <p>Suzuki students can begin as young as 3-4 years old, depending on the instrument and the child's readiness. Piano and violin are common starting instruments. Contact a teacher to discuss your child's readiness.</p>
+            </div>
+
+            <div class="faq-item">
+                <h4>Do parents need to have musical experience?</h4>
+                <p>No! Parent involvement is crucial in Suzuki education, but musical experience is not required. Parents learn alongside their children and provide support at home.</p>
+            </div>
+
+            <div class="faq-item">
+                <h4>How do I become a member teacher?</h4>
+                <p>Teachers interested in joining the Pittsburgh Suzuki Association should have completed Suzuki teacher training and be committed to the Suzuki philosophy. Contact us at <a href="mailto:info@pittsburghsuzuki.org">info@pittsburghsuzuki.org</a> for membership information.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Pittsburgh Suzuki Association. All rights reserved.</p>
+        <p>Supporting music education in Pittsburgh since 1975</p>
+    </footer>
+</body>
+</html>
