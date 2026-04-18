@@ -279,11 +279,26 @@ exports.handler = async (event) => {
     let parsed;
     try {
         const rawText = claudeRes.body.content[0].text.trim();
-        // Strip markdown code fences if present
-        const jsonStr = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '');
+        console.log('[admin-ai] raw Claude response (first 500 chars):', rawText.substring(0, 500));
+
+        // 1. Strip markdown code fences if present
+        let jsonStr = rawText
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        // 2. If the string doesn't start with '{', try to find a JSON object inside it
+        if (!jsonStr.startsWith('{')) {
+            const match = jsonStr.match(/\{[\s\S]*\}/);
+            if (match) jsonStr = match[0];
+        }
+
         parsed = JSON.parse(jsonStr);
     } catch (e) {
-        return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Could not parse AI response' }) };
+        const rawText = claudeRes.body.content?.[0]?.text || '(no text)';
+        console.error('[admin-ai] JSON parse failed. Raw text:', rawText.substring(0, 1000));
+        return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Could not parse AI response', hint: rawText.substring(0, 200) }) };
     }
 
     // ── Commit to GitHub if there are changes ──
