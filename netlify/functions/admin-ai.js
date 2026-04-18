@@ -183,6 +183,110 @@ function replaceSection(fullContent, startMarker, endMarker, newSection) {
     );
 }
 
+// ─── Split a section's HTML into individual item blocks ──────────────
+// Uses div-depth tracking so we can handle nested divs inside each item.
+// `itemOpenRegex` matches the opening tag of each item, e.g. /<div class=['"]event-item['"]/
+function splitItems(sectionHtml, itemOpenRegex) {
+    const items = [];
+    let searchFrom = 0;
+    while (true) {
+        itemOpenRegex.lastIndex = searchFrom;
+        const openMatch = itemOpenRegex.exec(sectionHtml);
+        if (!openMatch) break;
+        const start = openMatch.index;
+
+        // Walk forward tracking div depth. We just entered one div, so depth starts at 1.
+        let depth = 1;
+        let pos = start + 4; // past '<div'
+        const openTag = /<div\b/g;
+        const closeTag = /<\/div>/g;
+        while (depth > 0) {
+            openTag.lastIndex = pos;
+            closeTag.lastIndex = pos;
+            const nextOpen = openTag.exec(sectionHtml);
+            const nextClose = closeTag.exec(sectionHtml);
+            if (!nextClose) { pos = sectionHtml.length; break; }
+            if (nextOpen && nextOpen.index < nextClose.index) {
+                depth++;
+                pos = nextOpen.index + 4;
+            } else {
+                depth--;
+                pos = nextClose.index + 6; // past '</div>'
+            }
+        }
+        items.push(sectionHtml.slice(start, pos));
+        searchFrom = pos;
+    }
+    return items;
+}
+
+// ─── Extract <h3> text from an item block ────────────────────────────
+function itemTitle(itemHtml) {
+    const m = itemHtml.match(/<h3[^>]*>([\s\S]*?)<\/h3>/);
+    if (!m) return '';
+    return m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
+}
+
+// ─── Parse an event-item's date into a comparable number (ms) ────────
+function eventDateMs(itemHtml) {
+    const monthMap = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const monthM = itemHtml.match(/<span class=['"]month['"]>([^<]+)<\/span>/);
+    const dayM   = itemHtml.match(/<span class=['"]day['"]>([^<]+)<\/span>/);
+    const yearM  = itemHtml.match(/<span class=['"]year['"]>([^<]+)<\/span>/);
+    if (!monthM || !dayM || !yearM) return Number.MAX_SAFE_INTEGER; // unknown dates sort last
+    const mo = monthMap[monthM[1].trim().slice(0,3)];
+    const d = parseInt(dayM[1], 10);
+    const y = parseInt(yearM[1], 10);
+    if (mo == null || isNaN(d) || isNaN(y)) return Number.MAX_SAFE_INTEGER;
+    return new Date(y, mo, d).getTime();
+}
+
+// ─── Section config: how to find items + how to sort them ────────────
+const SECTION_CONFIG = {
+    EVENTS_LIST: {
+        file: 'events.html',
+        itemOpenRegex: /<div\s+class=['"]event-item['"]/g,
+        sort: (items) => items.slice().sort((a, b) => eventDateMs(a) - eventDateMs(b)),
+    },
+    TEACHERS_LIST: {
+        file: 'teachers.html',
+        itemOpenRegex: /<div\s+class=['"]teacher-card['"]/g,
+        sort: (items) => items, // keep insertion order
+    },
+};
+
+// ─── Apply an op (add/remove/edit) to an item list ───────────────────
+function applyOp(items, change) {
+    const op = change.op;
+    const matchText = (change.match || '').toLowerCase().trim();
+    const matches = (item) => matchText && itemTitle(item).toLowerCase().includes(matchText);
+
+    switch (op) {
+        case 'add':
+            if (!change.item) throw new Error("'add' op requires an 'item' field");
+            return [...items, change.item.trim()];
+        case 'remove': {
+            if (!matchText) throw new Error("'remove' op requires a 'match' field");
+            const kept = items.filter((it) => !matches(it));
+            if (kept.length === items.length) throw new Error(`No item matched '${change.match}'`);
+            return kept;
+        }
+        case 'edit': {
+            if (!matchText) throw new Error("'edit' op requires a 'match' field");
+            if (!change.item) throw new Error("'edit' op requires an 'item' field");
+            let replaced = 0;
+            const out = items.map((it) => {
+                if (matches(it)) { replaced++; return change.item.trim(); }
+                return it;
+            });
+            if (replaced === 0) throw new Error(`No item matched '${change.match}'`);
+            return out;
+        }
+        default:
+            throw new Error(`Unknown op: ${op}`);
+    }
+}
+
 // ─── Build the Claude system prompt ──────────────────────────────────
 function buildSystemPrompt(fileContents) {
     // For events and teachers, only show the section between markers (much smaller)
@@ -224,15 +328,23 @@ ${sections.join('\n\n')}
 
 CRITICAL: You MUST respond with valid JSON only. Never respond with plain text, markdown, or explanations outside of JSON. Every response must start with { and end with }.
 
-RESPONSE FORMAT:
+RESPONSE FORMAT — emit surgical operations. NEVER re-emit the whole list; the server merges and sorts for you.
 
-For event/teacher changes — return only the updated HTML items (not the full file):
-{"message":"Added Spring Recital on Apr 19","changes":[{"file":"events.html","section":"EVENTS_LIST","content":"<div class='event-item' data-category='recital'>...</div>"}]}
+ADD an event or teacher — supply ONE item only:
+{"message":"Added Spring Recital on Apr 19","changes":[{"file":"events.html","section":"EVENTS_LIST","op":"add","item":"<div class='event-item' data-category='recital'>...</div>"}]}
 
-For questions or clarifications — still return JSON with empty changes:
+REMOVE an event or teacher — match case-insensitively against the <h3> title/name:
+{"message":"Removed Spring Recital","changes":[{"file":"events.html","section":"EVENTS_LIST","op":"remove","match":"Spring Recital"}]}
+
+EDIT an event or teacher — supply BOTH a match string AND the new item (server will swap it in):
+{"message":"Updated the time for Spring Recital","changes":[{"file":"events.html","section":"EVENTS_LIST","op":"edit","match":"Spring Recital","item":"<div class='event-item' data-category='recital'>...</div>"}]}
+
+For questions or clarifications — return JSON with empty changes:
 {"message":"I need one more detail: what date is the event?","changes":[]}
 
-IMPORTANT: Use SINGLE QUOTES for all HTML attributes in the content field. Example:
+VALID sections are "EVENTS_LIST" (file: events.html) and "TEACHERS_LIST" (file: teachers.html).
+
+IMPORTANT: Use SINGLE QUOTES for all HTML attributes in the item field (the server and existing file handle both, but JSON-escaping double quotes is error-prone). Example:
 CORRECT: <div class='event-item' data-category='recital'>
 WRONG:   <div class="event-item" data-category="recital">
 
@@ -274,8 +386,8 @@ TEACHER CARD TEMPLATE (single quotes only):
 
 RULES:
 - ALWAYS return JSON. Never return plain text — not even for questions or clarifications.
-- For section changes: return ALL items in that section (complete updated list, events sorted chronologically)
-- Do not include the marker comments themselves in the content field
+- For 'add' and 'edit', emit ONLY the single new item HTML in the 'item' field. Do NOT re-emit the whole list.
+- Month abbreviations must be 3 letters: Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec. The server uses these to sort events chronologically.
 - Do not invent addresses, phone numbers, or details — only use what the admin provides
 - Today is ${new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
 - Use single quotes for all HTML attributes to avoid JSON escaping issues`;
@@ -411,21 +523,37 @@ exports.handler = async (event) => {
     // ── Commit to GitHub if there are changes ──
     if (parsed.changes && parsed.changes.length > 0) {
         try {
-            // For section-based changes, reuse the already-fetched file content
-            const resolvedChanges = await Promise.all(
-                parsed.changes.map(async (change) => {
-                    if (change.section) {
-                        // Reuse already-fetched content — no extra GitHub API call needed
-                        const cached = fileContents[change.file];
-                        if (!cached) throw new Error(`File ${change.file} was not loaded`);
-                        const startMarker = `<!-- ${change.section}_START -->`;
-                        const endMarker = `<!-- ${change.section}_END -->`;
-                        const newFullContent = replaceSection(cached.content, startMarker, endMarker, change.content);
-                        return { file: change.file, content: newFullContent };
+            // For section-based changes, apply the op to the cached section HTML.
+            // We never ask Claude to re-emit the whole list — it emits one item + an op,
+            // and we splice/sort on the server. Keeps Claude output small and fast.
+            const resolvedChanges = parsed.changes.map((change) => {
+                if (change.section) {
+                    const cfg = SECTION_CONFIG[change.section];
+                    if (!cfg) throw new Error(`Unknown section: ${change.section}`);
+                    const cached = fileContents[change.file] || fileContents[cfg.file];
+                    if (!cached) throw new Error(`File for section ${change.section} was not loaded`);
+                    const startMarker = `<!-- ${change.section}_START -->`;
+                    const endMarker = `<!-- ${change.section}_END -->`;
+                    const sectionHtml = extractSection(cached.content, startMarker, endMarker) || '';
+
+                    let newBody;
+                    if (change.op) {
+                        const items = splitItems(sectionHtml, new RegExp(cfg.itemOpenRegex.source, 'g'));
+                        const updated = applyOp(items, change);
+                        const sorted = cfg.sort(updated);
+                        newBody = sorted.join('\n\n            ');
+                    } else if (change.content) {
+                        // Back-compat: old-style full-section rewrite
+                        newBody = change.content;
+                    } else {
+                        throw new Error("Change must include either 'op' or 'content'");
                     }
-                    return change;
-                })
-            );
+
+                    const newFullContent = replaceSection(cached.content, startMarker, endMarker, newBody);
+                    return { file: cfg.file, content: newFullContent };
+                }
+                return change;
+            });
 
             const commitSha = await commitChanges(
                 GITHUB_REPO,
