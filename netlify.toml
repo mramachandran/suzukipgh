@@ -5,10 +5,8 @@
   # Where serverless functions live
   functions = "netlify/functions"
 
-# Increase function timeout to maximum allowed (26 seconds)
-# Default is 10s which is too short for Claude API calls
-[functions]
-  timeout = 26
+# Note: Netlify function timeout is plan-based, not configurable via netlify.toml.
+# With the ops-based admin-ai rewrite, execution stays well under the default.
 
 # Redirect /admin to admin.html (cleaner URL)
 [[redirects]]
