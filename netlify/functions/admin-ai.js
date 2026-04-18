@@ -163,43 +163,131 @@ async function commitChanges(repo, token, changes, commitMessage) {
     return newCommitRes.body.sha;
 }
 
+// ─── Extract section between markers ────────────────────────────────
+function extractSection(content, startMarker, endMarker) {
+    const start = content.indexOf(startMarker);
+    const end = content.indexOf(endMarker);
+    if (start === -1 || end === -1) return null;
+    return content.substring(start + startMarker.length, end).trim();
+}
+
+// ─── Replace section between markers in a full file ──────────────────
+function replaceSection(fullContent, startMarker, endMarker, newSection) {
+    const start = fullContent.indexOf(startMarker);
+    const end = fullContent.indexOf(endMarker);
+    if (start === -1 || end === -1) return fullContent;
+    return (
+        fullContent.substring(0, start + startMarker.length) +
+        '\n' + newSection + '\n            ' +
+        fullContent.substring(end)
+    );
+}
+
 // ─── Build the Claude system prompt ──────────────────────────────────
 function buildSystemPrompt(fileContents) {
-    const files = Object.entries(fileContents)
+    // For events and teachers, only show the section between markers (much smaller)
+    const sections = [];
+
+    if (fileContents['events.html']) {
+        const eventsSection = extractSection(
+            fileContents['events.html'].content,
+            '<!-- EVENTS_LIST_START -->',
+            '<!-- EVENTS_LIST_END -->'
+        );
+        if (eventsSection) {
+            sections.push(`### CURRENT EVENTS (events.html)\nThese are the event items currently between the EVENTS_LIST_START and EVENTS_LIST_END markers:\n\`\`\`html\n${eventsSection}\n\`\`\``);
+        }
+    }
+
+    if (fileContents['teachers.html']) {
+        const teachersSection = extractSection(
+            fileContents['teachers.html'].content,
+            '<!-- TEACHERS_LIST_START -->',
+            '<!-- TEACHERS_LIST_END -->'
+        );
+        if (teachersSection) {
+            sections.push(`### CURRENT TEACHERS (teachers.html)\nThese are the teacher cards currently between the TEACHERS_LIST_START and TEACHERS_LIST_END markers:\n\`\`\`html\n${teachersSection}\n\`\`\``);
+        }
+    }
+
+    // For other files, include them in full (they're smaller)
+    const otherFiles = Object.entries(fileContents)
+        .filter(([name]) => name !== 'events.html' && name !== 'teachers.html')
         .map(([name, { content }]) => `### FILE: ${name}\n\`\`\`html\n${content}\n\`\`\``)
         .join('\n\n');
 
+    if (otherFiles) sections.push(otherFiles);
+
     return `You are the AI website assistant for the Suzuki Association of Pittsburgh, a small nonprofit music education organization in Pittsburgh, PA.
 
-You have access to the full HTML source of the website. When the admin asks you to make a change, produce a JSON response describing what to update.
-
-${files}
+${sections.join('\n\n')}
 
 RESPONSE FORMAT — always respond with valid JSON, nothing else:
 
-If changes are needed:
+If modifying events or teachers, return ONLY the updated section content (the items between the markers, not the markers themselves):
 {
-  "message": "Plain English summary of what you changed (1-2 sentences)",
+  "message": "Plain English summary of what you changed",
   "changes": [
-    { "file": "filename.html", "content": "COMPLETE new content of that file" }
+    { "file": "events.html", "section": "EVENTS_LIST", "content": "<div class=\\"event-item\\" ...>...</div>\\n<div class=\\"event-item\\" ...>...</div>" }
   ]
 }
 
-If no file changes are needed (answering a question, asking for clarification, etc.):
+If modifying other files, return the complete file content:
+{
+  "message": "Plain English summary of what you changed",
+  "changes": [
+    { "file": "index.html", "content": "COMPLETE FILE CONTENT" }
+  ]
+}
+
+If no changes needed (answering a question or asking for clarification):
 {
   "message": "Your answer here",
   "changes": []
 }
 
+EVENT ITEM TEMPLATE (use this exact structure):
+<div class="event-item" data-category="recital">
+    <div class="event-date-badge">
+        <span class="month">Apr</span>
+        <span class="day">19</span>
+        <span class="year">2026</span>
+    </div>
+    <div class="event-content">
+        <h3>Event Title Here</h3>
+        <div class="event-meta">
+            <span class="event-time">🕐 5:00 PM</span>
+            <span class="event-location">📍 Venue Name</span>
+        </div>
+        <p>Brief description.</p>
+        <div class="event-address">
+            <strong>Location:</strong> Full address here
+        </div>
+    </div>
+</div>
+
+TEACHER CARD TEMPLATE:
+<div class="teacher-card">
+    <div class="teacher-header">
+        <div class="teacher-icon">🎹</div>
+        <div>
+            <h3>Teacher Name</h3>
+            <p class="teacher-instrument">Instrument</p>
+        </div>
+    </div>
+    <p class="teacher-bio">Bio here.</p>
+    <div class="teacher-contact">
+        <p>📧 <a href="mailto:email@example.com">email@example.com</a></p>
+        <p>📞 (412) 555-0000</p>
+    </div>
+</div>
+
 RULES:
-- Return the COMPLETE file content for any file you modify — never partial content or diffs
-- Preserve all navigation, footer, CSS links, JS scripts, and existing structure exactly
-- For event cards, use the existing .event-item HTML structure
-- For teacher cards, use the existing .teacher-card HTML structure
-- Keep events sorted chronologically (earliest first)
+- For section changes: return ALL items in that section (the complete updated list, chronologically sorted for events)
+- Do not return the marker comments themselves — only the content between them
 - Do not invent addresses, phone numbers, or details — only use what the admin provides
 - If the request is ambiguous, ask a clarifying question (with empty changes array)
-- Be concise in your message — the admin just needs to know what changed`;
+- Keep JSON strings properly escaped`;
 }
 
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────
@@ -332,10 +420,27 @@ exports.handler = async (event) => {
     // ── Commit to GitHub if there are changes ──
     if (parsed.changes && parsed.changes.length > 0) {
         try {
+            // For section-based changes, fetch the full file and splice in the new section
+            const resolvedChanges = await Promise.all(
+                parsed.changes.map(async (change) => {
+                    if (change.section) {
+                        // Fetch the full current file from GitHub
+                        const fileRes = await github('GET', `/repos/${GITHUB_REPO}/contents/${change.file}`, null, GITHUB_TOKEN);
+                        if (fileRes.status !== 200) throw new Error(`Could not fetch ${change.file}`);
+                        const fullContent = Buffer.from(fileRes.body.content, 'base64').toString('utf-8');
+                        const startMarker = `<!-- ${change.section}_START -->`;
+                        const endMarker = `<!-- ${change.section}_END -->`;
+                        const newFullContent = replaceSection(fullContent, startMarker, endMarker, change.content);
+                        return { file: change.file, content: newFullContent };
+                    }
+                    return change;
+                })
+            );
+
             const commitSha = await commitChanges(
                 GITHUB_REPO,
                 GITHUB_TOKEN,
-                parsed.changes,
+                resolvedChanges,
                 parsed.message
             );
             parsed.commitUrl = `https://github.com/${GITHUB_REPO}/commit/${commitSha}`;
