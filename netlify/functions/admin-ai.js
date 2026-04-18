@@ -222,72 +222,63 @@ function buildSystemPrompt(fileContents) {
 
 ${sections.join('\n\n')}
 
-RESPONSE FORMAT — always respond with valid JSON, nothing else:
+CRITICAL: You MUST respond with valid JSON only. Never respond with plain text, markdown, or explanations outside of JSON. Every response must start with { and end with }.
 
-If modifying events or teachers, return ONLY the updated section content (the items between the markers, not the markers themselves):
-{
-  "message": "Plain English summary of what you changed",
-  "changes": [
-    { "file": "events.html", "section": "EVENTS_LIST", "content": "<div class=\\"event-item\\" ...>...</div>\\n<div class=\\"event-item\\" ...>...</div>" }
-  ]
-}
+RESPONSE FORMAT:
 
-If modifying other files, return the complete file content:
-{
-  "message": "Plain English summary of what you changed",
-  "changes": [
-    { "file": "index.html", "content": "COMPLETE FILE CONTENT" }
-  ]
-}
+For event/teacher changes — return only the updated HTML items (not the full file):
+{"message":"Added Spring Recital on Apr 19","changes":[{"file":"events.html","section":"EVENTS_LIST","content":"<div class='event-item' data-category='recital'>...</div>"}]}
 
-If no changes needed (answering a question or asking for clarification):
-{
-  "message": "Your answer here",
-  "changes": []
-}
+For questions or clarifications — still return JSON with empty changes:
+{"message":"I need one more detail: what date is the event?","changes":[]}
 
-EVENT ITEM TEMPLATE (use this exact structure):
-<div class="event-item" data-category="recital">
-    <div class="event-date-badge">
-        <span class="month">Apr</span>
-        <span class="day">19</span>
-        <span class="year">2026</span>
+IMPORTANT: Use SINGLE QUOTES for all HTML attributes in the content field. Example:
+CORRECT: <div class='event-item' data-category='recital'>
+WRONG:   <div class="event-item" data-category="recital">
+
+EVENT ITEM TEMPLATE (single quotes only):
+<div class='event-item' data-category='recital'>
+    <div class='event-date-badge'>
+        <span class='month'>Apr</span>
+        <span class='day'>19</span>
+        <span class='year'>2026</span>
     </div>
-    <div class="event-content">
+    <div class='event-content'>
         <h3>Event Title Here</h3>
-        <div class="event-meta">
-            <span class="event-time">🕐 5:00 PM</span>
-            <span class="event-location">📍 Venue Name</span>
+        <div class='event-meta'>
+            <span class='event-time'>🕐 5:00 PM</span>
+            <span class='event-location'>📍 Venue Name</span>
         </div>
         <p>Brief description.</p>
-        <div class="event-address">
+        <div class='event-address'>
             <strong>Location:</strong> Full address here
         </div>
     </div>
 </div>
 
-TEACHER CARD TEMPLATE:
-<div class="teacher-card">
-    <div class="teacher-header">
-        <div class="teacher-icon">🎹</div>
+TEACHER CARD TEMPLATE (single quotes only):
+<div class='teacher-card'>
+    <div class='teacher-header'>
+        <div class='teacher-icon'>🎹</div>
         <div>
             <h3>Teacher Name</h3>
-            <p class="teacher-instrument">Instrument</p>
+            <p class='teacher-instrument'>Instrument</p>
         </div>
     </div>
-    <p class="teacher-bio">Bio here.</p>
-    <div class="teacher-contact">
-        <p>📧 <a href="mailto:email@example.com">email@example.com</a></p>
+    <p class='teacher-bio'>Bio here.</p>
+    <div class='teacher-contact'>
+        <p>📧 <a href='mailto:email@example.com'>email@example.com</a></p>
         <p>📞 (412) 555-0000</p>
     </div>
 </div>
 
 RULES:
-- For section changes: return ALL items in that section (the complete updated list, chronologically sorted for events)
-- Do not return the marker comments themselves — only the content between them
+- ALWAYS return JSON. Never return plain text — not even for questions or clarifications.
+- For section changes: return ALL items in that section (complete updated list, events sorted chronologically)
+- Do not include the marker comments themselves in the content field
 - Do not invent addresses, phone numbers, or details — only use what the admin provides
-- If the request is ambiguous, ask a clarifying question (with empty changes array)
-- Keep JSON strings properly escaped`;
+- Today is ${new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
+- Use single quotes for all HTML attributes to avoid JSON escaping issues`;
 }
 
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────
