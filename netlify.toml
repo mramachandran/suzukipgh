@@ -1,0 +1,25 @@
+# Netlify configuration for Suzuki Association of Pittsburgh
+# Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # Where serverless functions live
+  functions = "netlify/functions"
+
+# Redirect /admin to admin.html (cleaner URL)
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type"
