@@ -569,7 +569,8 @@ async function sendMessage() {
         }
 
         if (data.error) {
-            appendMsg('ai', `Sorry, something went wrong: ${data.error}`);
+            const detail = data.hint ? `\n\nDebug: ${data.hint}` : '';
+            appendMsg('ai', `Sorry, something went wrong: ${data.error}${detail}`);
         } else {
             const hasChanges = data.changes && data.changes.length > 0;
             appendMsg('ai', data.message, hasChanges ? data : null);
