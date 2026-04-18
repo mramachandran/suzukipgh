@@ -244,8 +244,36 @@ exports.handler = async (event) => {
         };
     }
 
-    // ── Fetch current website files ──
-    const filesToLoad = ['events.html', 'teachers.html', 'index.html', 'about.html', 'contact.html', 'programs.html'];
+    // ── Smart file selection — only load files relevant to the request ──
+    const msg = message.toLowerCase();
+    const filesToLoad = [];
+
+    // Always include events.html (most commonly updated)
+    filesToLoad.push('events.html');
+
+    if (msg.includes('teacher') || msg.includes('contact') || msg.includes('phone') || msg.includes('email') || msg.includes('bio')) {
+        filesToLoad.push('teachers.html');
+    }
+    if (msg.includes('home') || msg.includes('welcome') || msg.includes('announcement') || msg.includes('testimonial') || msg.includes('newsletter') || msg.includes('index')) {
+        filesToLoad.push('index.html');
+    }
+    if (msg.includes('about') || msg.includes('suzuki method') || msg.includes('philosophy')) {
+        filesToLoad.push('about.html');
+    }
+    if (msg.includes('program') || msg.includes('instrument') || msg.includes('violin') || msg.includes('piano') || msg.includes('cello') || msg.includes('guitar')) {
+        filesToLoad.push('programs.html');
+    }
+    if (msg.includes('contact') || msg.includes('address') || msg.includes('map') || msg.includes('location')) {
+        filesToLoad.push('contact.html');
+    }
+
+    // If nothing specific matched beyond events, also include index for context
+    if (filesToLoad.length === 1) {
+        filesToLoad.push('index.html');
+    }
+
+    console.log('[admin-ai] loading files:', filesToLoad);
+
     let fileContents;
     try {
         fileContents = await fetchFiles(GITHUB_REPO, GITHUB_TOKEN, filesToLoad);
