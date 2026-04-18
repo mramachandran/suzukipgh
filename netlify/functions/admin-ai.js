@@ -339,16 +339,16 @@ exports.handler = async (event) => {
     if (msg.includes('about') || msg.includes('suzuki method') || msg.includes('philosophy')) {
         filesToLoad.push('about.html');
     }
-    if (msg.includes('program') || msg.includes('instrument') || msg.includes('violin') || msg.includes('piano') || msg.includes('cello') || msg.includes('guitar')) {
+    if (msg.includes('program') || msg.includes('instrument offered') || msg.includes('what instruments')) {
         filesToLoad.push('programs.html');
     }
-    if (msg.includes('contact') || msg.includes('address') || msg.includes('map') || msg.includes('location')) {
+    if (msg.includes('contact page') || msg.includes('contact form') || msg.includes('google map')) {
         filesToLoad.push('contact.html');
     }
 
-    // If nothing specific matched beyond events, also include index for context
-    if (filesToLoad.length === 1) {
-        filesToLoad.push('index.html');
+    // Only add index.html if explicitly about homepage content
+    if (msg.includes('home') || msg.includes('welcome') || msg.includes('announcement') || msg.includes('testimonial') || msg.includes('newsletter')) {
+        if (!filesToLoad.includes('index.html')) filesToLoad.push('index.html');
     }
 
     console.log('[admin-ai] loading files:', filesToLoad);
@@ -411,17 +411,16 @@ exports.handler = async (event) => {
     // ── Commit to GitHub if there are changes ──
     if (parsed.changes && parsed.changes.length > 0) {
         try {
-            // For section-based changes, fetch the full file and splice in the new section
+            // For section-based changes, reuse the already-fetched file content
             const resolvedChanges = await Promise.all(
                 parsed.changes.map(async (change) => {
                     if (change.section) {
-                        // Fetch the full current file from GitHub
-                        const fileRes = await github('GET', `/repos/${GITHUB_REPO}/contents/${change.file}`, null, GITHUB_TOKEN);
-                        if (fileRes.status !== 200) throw new Error(`Could not fetch ${change.file}`);
-                        const fullContent = Buffer.from(fileRes.body.content, 'base64').toString('utf-8');
+                        // Reuse already-fetched content — no extra GitHub API call needed
+                        const cached = fileContents[change.file];
+                        if (!cached) throw new Error(`File ${change.file} was not loaded`);
                         const startMarker = `<!-- ${change.section}_START -->`;
                         const endMarker = `<!-- ${change.section}_END -->`;
-                        const newFullContent = replaceSection(fullContent, startMarker, endMarker, change.content);
+                        const newFullContent = replaceSection(cached.content, startMarker, endMarker, change.content);
                         return { file: change.file, content: newFullContent };
                     }
                     return change;
