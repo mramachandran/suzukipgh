@@ -5,6 +5,11 @@
   # Where serverless functions live
   functions = "netlify/functions"
 
+# Increase function timeout to maximum allowed (26 seconds)
+# Default is 10s which is too short for Claude API calls
+[functions."admin-ai"]
+  timeout = 26
+
 # Redirect /admin to admin.html (cleaner URL)
 [[redirects]]
   from = "/admin"
