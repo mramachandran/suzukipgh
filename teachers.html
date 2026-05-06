@@ -231,6 +231,8 @@
                         <label for="message">Message</label>
                         <textarea id="message" name="message" rows="5" placeholder="Tell us about your child's musical interests and any questions you have..."></textarea>
                     </div>
+                    <!-- Honeypot spam filter (hidden from real users) -->
+                    <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
                     <button type="submit" class="btn btn-primary">Send Inquiry</button>
                 </form>
             </div>

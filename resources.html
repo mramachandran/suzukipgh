@@ -304,7 +304,9 @@
             <h2>Stay Updated</h2>
             <p>Subscribe to our newsletter for updates on events, workshops, and Suzuki news</p>
             <form class="newsletter-form" id="newsletterForm">
-                <input type="email" placeholder="Enter your email address" required aria-label="Email address">
+                <input type="email" name="email" placeholder="Enter your email address" required aria-label="Email address">
+                <!-- Honeypot spam filter (hidden from real users) -->
+                <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
                 <button type="submit">Subscribe</button>
             </form>
         </div>

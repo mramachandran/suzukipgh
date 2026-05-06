@@ -155,87 +155,74 @@ document.addEventListener('DOMContentLoaded', function() {
         input.setAttribute('aria-invalid', 'false');
     }
 
-    // Handle contact form submission
-    if (contactForm) {
-        contactForm.addEventListener('submit', function(e) {
+    // ===== FORMSPREE FORM IDs =====
+    // Replace these placeholder IDs with your real Formspree form IDs.
+    // Get them at https://formspree.io after creating each form.
+    const FORMSPREE_CONTACT    = 'mnjwzzry';              // contact.html
+    const FORMSPREE_INQUIRY    = 'xqenllok';              // teachers.html
+    const FORMSPREE_NEWSLETTER = 'xykoppak';              // index.html + resources.html
+
+    // Generic Formspree submit handler
+    function submitToFormspree(form, formId, onSuccess) {
+        form.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            // Get form data
-            const formData = new FormData(contactForm);
-            const data = Object.fromEntries(formData.entries());
-
-            // Show loading state
-            const submitBtn = contactForm.querySelector('button[type="submit"]');
+            const submitBtn = form.querySelector('button[type="submit"]');
             const originalText = submitBtn.textContent;
             submitBtn.disabled = true;
             submitBtn.textContent = 'Sending...';
 
-            // Simulate API call (in production, replace with actual API call)
-            setTimeout(() => {
-                console.log('Form submission:', data);
+            fetch('https://formspree.io/f/' + formId, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function(response) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = originalText;
+                if (response.ok) {
+                    onSuccess(form);
+                } else {
+                    response.json().then(function(data) {
+                        var msg = (data && data.errors)
+                            ? data.errors.map(function(e) { return e.message; }).join(', ')
+                            : 'Something went wrong. Please try again or email us directly.';
+                        alert(msg);
+                    });
+                }
+            })
+            .catch(function() {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+                alert('Could not send your message. Please check your connection and try again.');
+            });
+        });
+    }
 
-                // Display success message
-                showSuccessMessage(contactForm, 'Thank you for your message! We\'ll get back to you within 24-48 hours.');
-            }, 1000);
+    // Handle contact form submission
+    if (contactForm) {
+        submitToFormspree(contactForm, FORMSPREE_CONTACT, function(form) {
+            showSuccessMessage(form, 'Thank you for your message! We\'ll get back to you within 24-48 hours.');
         });
     }
 
     // Handle lesson inquiry form submission
     if (lessonInquiryForm) {
-        lessonInquiryForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            // Get form data
-            const formData = new FormData(lessonInquiryForm);
-            const data = Object.fromEntries(formData.entries());
-
-            // Show loading state
-            const submitBtn = lessonInquiryForm.querySelector('button[type="submit"]');
-            const originalText = submitBtn.textContent;
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Sending...';
-
-            // Simulate API call
-            setTimeout(() => {
-                console.log('Lesson inquiry:', data);
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
-
-                // Display success message
-                showSuccessMessage(lessonInquiryForm, 'Thank you for your interest! A teacher will contact you within 2-3 business days to discuss lesson availability.');
-            }, 1000);
+        submitToFormspree(lessonInquiryForm, FORMSPREE_INQUIRY, function(form) {
+            showSuccessMessage(form, 'Thank you for your interest! A teacher will contact you within 2-3 business days to discuss lesson availability.');
         });
     }
 
     // Handle newsletter form submission
     if (newsletterForm) {
-        newsletterForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            const emailInput = newsletterForm.querySelector('input[type="email"]');
-            const submitBtn = newsletterForm.querySelector('button[type="submit"]');
-            const originalText = submitBtn.textContent;
-
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Subscribing...';
-
-            setTimeout(() => {
-                console.log('Newsletter subscription:', emailInput.value);
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
-
-                // Show inline success
-                const successMsg = document.createElement('div');
-                successMsg.className = 'newsletter-success';
-                successMsg.textContent = 'Successfully subscribed!';
-                newsletterForm.appendChild(successMsg);
-
-                emailInput.value = '';
-
-                setTimeout(() => successMsg.remove(), 3000);
-            }, 1000);
+        submitToFormspree(newsletterForm, FORMSPREE_NEWSLETTER, function(form) {
+            const emailInput = form.querySelector('input[type="email"]');
+            const successMsg = document.createElement('div');
+            successMsg.className = 'newsletter-success';
+            successMsg.textContent = 'Successfully subscribed!';
+            form.appendChild(successMsg);
+            emailInput.value = '';
+            setTimeout(function() { successMsg.remove(); }, 3000);
         });
     }
     
